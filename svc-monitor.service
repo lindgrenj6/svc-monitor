@@ -1,0 +1,6 @@
+[Unit]
+Description=Run My SVC Monitor
+
+[Service]
+ExecStart=/home/jlindgren/git/tiny_projects/monitor/svc-monitor
+Type=oneshot
