@@ -61,7 +61,6 @@ func checkService(subdomain, service string) {
 
 		fmt.Printf("e: %v\nk", err)
 
-		wg.Add(1)
 		go restartSvc(service)
 		return
 	}
