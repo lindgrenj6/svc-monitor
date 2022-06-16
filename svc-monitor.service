@@ -2,5 +2,6 @@
 Description=Run My SVC Monitor
 
 [Service]
-ExecStart=/home/jlindgren/git/tiny_projects/monitor/svc-monitor
+EnvironmentFile=/home/jlindgren/git/tiny_projects/svc-monitor/svc-monitor.env
+ExecStart=/home/jlindgren/git/tiny_projects/svc-monitor/svc-monitor
 Type=oneshot
