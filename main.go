@@ -72,6 +72,7 @@ var (
 			server:  "loudred",
 			scope:   systemScope},
 	}
+
 	// global waitgroup to keep track of running sub-shells.
 	wg = sync.WaitGroup{}
 )
@@ -82,46 +83,44 @@ func main() {
 
 	// check all of them at once, async baby!!!
 	for i := range svcs {
-		go checkService(&svcs[i])
+		go func(service *service) {
+			err := checkService(service)
+			if err != nil {
+				restartSvc(service)
+			}
+			wg.Done()
+		}(&svcs[i])
 	}
 
 	wg.Wait()
 }
 
-func checkService(srv *service) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.url, nil)
-	if err != nil {
-		fmt.Printf("Error creating req for %v, exiting routine.\n", srv.url)
-		wg.Done() // marking done otherwise this thing will hang forever.
-		return
-	}
-
+func checkService(srv *service) error {
 	// retry at least maxRetries times just in case wg flakes or something
 	for retry := 1; ; retry++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.url, nil)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			if resp != nil && resp.StatusCode > 299 {
-				fmt.Printf("Got response status code of %v\n", resp.StatusCode)
-			}
-
-			fmt.Printf("error hitting %v: %v\n", srv.url, err)
-
-			if retry == maxRetries {
-				go restartSvc(srv)
-				return
-			}
-
-			time.Sleep(3 * time.Second)
+			fmt.Printf("Error hitting %v: %v\n", srv.url, err)
+		} else if resp != nil && resp.StatusCode > 299 {
+			fmt.Printf("Got response status code %v for url %v \n", resp.StatusCode, srv.url)
 		} else {
+			// we must not have any errors, break out of the loop.
 			break
 		}
+
+		if retry == maxRetries {
+			return fmt.Errorf("max retries reached")
+		}
+
+		time.Sleep(3 * time.Second)
 	}
 
 	fmt.Printf("No issues with %v\n", srv.url)
-	wg.Done()
+	return nil
 }
 
 func restartSvc(svc *service) {
@@ -150,6 +149,4 @@ func restartSvc(svc *service) {
 	} else {
 		telegramNotify("🔄 svc-monitor restarted " + svc.service)
 	}
-
-	wg.Done()
 }
